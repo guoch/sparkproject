@@ -8,13 +8,19 @@ Noted by Guo Chenghao
 '''
 import happybase
 conn = happybase.Connection('10.141.211.91')
-##hbase OK
-# conn.create_table('project',{'f':dict()})
-# for key,data in table.scan():
-	# print key,data
+table=conn.table('news')
 
-table = conn.table('testbase')
-connection.create_table('newstest',{'time':dict(),'title':dict(),'content':dict()})
+def createtable():
+	#conn.create_table('newstest',{'f:time':dict(),'f:title':dict(),'f:content':dict()})
+	conn.create_table('newstest4',{'news': dict(max_versions=3)})
+
+def storehbase(url,time,title,content):
+	table.put(url,{'f:time':time,'f:title':title,'f:content':content})
+	##hbase OK
+	# conn.create_table('project',{'f':dict()})
+	# for key,data in table.scan():
+		# print key,data
+	
 
 # table.put('row-key', {'family:qual1': 'value1',
 #                       'family:qual2': 'value2'})

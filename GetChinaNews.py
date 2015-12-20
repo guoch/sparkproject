@@ -1,23 +1,13 @@
 #coding=UTF-8
 import re,urllib,socket,os,datetime,sys,time
 from sgmllib import SGMLParser
-#20140102增加内容：添加文件列表配置项，统一输出文件的编码(IFENG的默认输出为UTF8，调整为gb2312)，得到获取的新闻列表并按照发表时间排序输出到newslist.txt
 reload(sys)
 sys.setdefaultencoding('utf8')
-"""
-默认站点列表，各站点的标签及其说明如下：
-中国新闻网(ZXW)
-网易新闻(163)
-人民网(RMW)
-新浪(SINA)
-凤凰资讯(IFENG)
-"""
 #下载配置
+import database
 defaultSiteList = ["ZXW"] #新闻源站点设置
 argD = os.getcwd()+os.path.sep+'..'+os.path.sep+'dataNews'#default目录
 newsListFilePath = os.getcwd()+os.path.sep
-
-
 
 #默认开始结束时间
 defaultStartTime = "2015-11-02"
@@ -192,10 +182,15 @@ class GetChinaNews():
 				fileName = site+"-"+str(self.tag)
 				self.tag = self.tag + 1
 				#store in .txt files
-				txtSource = newsTitle+"\n"+newsUrl+"\n"+newsTime+"\n"+strText   
+				newsUrl=newsUrl.decode('gb2312').encode('utf-8')
+				newsTime=newsTime.decode('gb2312').encode('utf-8')
+				newsTitle=newsTitle.decode('gb2312').encode('utf-8')
+				strText=strText.decode('gb2312').encode('utf-8')
+				database.storehbase(newsUrl,newsTime,newsTitle,strText)
+				txtSource = newsTitle+"\n"+newsUrl+"\n"+newsTime+"\n"+strText 
 				#用于重新编码
 				#将IFENG的默认编码设置为gb2312（与大部分一致）
-				txtSource=txtSource.decode('gb2312').encode('utf-8')
+				#txtSource=txtSource.decode('gb2312').encode('utf-8')
 				if site == "IFENG":
 					newsTitle = newsTitle.encode('gb2312','ignore')
 					txtSource = txtSource.encode('gb2312','ignore')
