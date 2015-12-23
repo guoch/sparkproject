@@ -20,6 +20,10 @@ def storehbase(url,time,title,content):
 	# conn.create_table('project',{'f':dict()})
 	# for key,data in table.scan():
 		# print key,data
+def getrow(rowid):
+	table=conn.table('test3')
+	row=table.row(rowid)
+	return row
 	
 
 # table.put('row-key', {'family:qual1': 'value1',

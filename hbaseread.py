@@ -4,6 +4,7 @@ import json
 from pyspark import SparkContext
 import sys 
 import jieba
+import jieba.analyse
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
@@ -11,6 +12,8 @@ sys.setdefaultencoding('utf-8')
 """
 author:Kira(Chenghao Guo)
 
+
+根据时间筛选top k
 Create test data in HBase first:
 
 hbase(main):016:0> create 'test', 'f1'
@@ -42,10 +45,21 @@ def wordcut(v):
     myvalue='|'.join(seglist)
     return myvalue
 
+def content_analyse(v):
+    x=eval("'%s'"%v['value'])
+    # seglist=jieba.cut(x)
+    seglist=jieba.analyse.extract_tags(a,10)
+    myvalue='|'.join(seglist)
+    return myvalue
+
 def inverted(v):
     url=v[0]
     return ((word,url) for word in v[1].split('|'))
 
+def ridoff(ids):
+    news_ids=list(set(ids))
+    news_ids.sort(ids.index)
+    return news_ids
 
 def hbaseput(sc,host,table,args):  #单独插入性能比较差，并行插入
     '''
@@ -97,17 +111,31 @@ if __name__ == "__main__":
 
     hbase_rdd = sc.newAPIHadoopRDD("org.apache.hadoop.hbase.mapreduce.TableInputFormat","org.apache.hadoop.hbase.io.ImmutableBytesWritable","org.apache.hadoop.hbase.client.Result",keyConverter=keyConv,valueConverter=valueConv,conf=conf)
     hbase_rdd = hbase_rdd.flatMapValues(lambda v: v.split("\n")).mapValues(json.loads)
-    hbase_rdd=hbase_rdd.filter(lambda keyValue: keyValue[1]['qualifier']=='content')
-    hbase_rdd=hbase_rdd.mapValues(wordcut)
+
+    hbase_rdd_title=hbase_rdd.filter(lambda keyValue: keyValue[1]['qualifier']=='title')
+    hbase_rdd_title=hbase_rdd_title.mapValues(wordcut)  #分析title中所有的关键词，title的权重更加重一些
+
+    hbase_rdd_content=hbase_rdd.filter(lambda keyValue: keyValue[1]['qualifier']=='content')
+    hbase_rdd_content=hbase_rdd_content.mapValues(content_analyse) #按照tf-idf分析去除不相干的关键词以及得到top k的词
+    # tags=jieba.analyse.extract_tags(content,top_num)
 
     '''
     |著名|导演|郭宝昌|最新|执导|的|中国|首部|历史|谋略|情节剧|《|谋圣|鬼谷子|》|正在|浙江省|象山|影视城|热拍|。|郭宝昌|出|“|宅门|”|后|首次|玩|“|谋略|”|，|让|这部|剧|深受|观众|期待|，|他|表示|《|谋圣|鬼谷子|》|要|打|造成|中国|版|《|权力|的|游戏|》|。|
 
     '''
-    hbase_rdd=hbase_rdd.flatMap(inverted)  
-    # hbase_rdd=hbase_rdd.flatMap(inverted).groupByKey()
-    hbase_rdd=hbase_rdd.filter(lambda keyValue:len(keyValue[0])>1) #过滤太短的关键词
-    # output = hbase_rdd.collect()
+    hbase_rdd_new=hbase_rdd_title.union(hbase_rdd_content)
+    #hbase_rdd_title=hbase_rdd_title.flatMap(inverted)  
+
+    hbase_rdd_new=hbase_rdd_new.flatMap(inverted).groupByKey()
+    #list(set(myList)) 对list去重，一行里面包括多个url并rank
+    hbase_rdd_new=hbase_rdd_new.filter(lambda keyValue:len(keyValue[0])>4) #过滤太短的关键词
+
+    #rank策略 content基于tfidf后
+    # hbase_rdd_new=hbase_rdd_new.mapValues(lambda v: list(set(v))).mapValues(lambda v: "|".join(v))
+    hbase_rdd_new=hbase_rdd_new.mapValues(ridoff).mapValues(lambda v: "|".join(v))
+
+    # sc.union(rdd1, rdd2)
+    # output = hbase_rdd_new.collect()
     # for (k, v) in output:
     #     for url in v:
     #         if len(k)>1:
@@ -136,7 +164,8 @@ if __name__ == "__main__":
     keyConvout = "org.apache.spark.examples.pythonconverters.StringToImmutableBytesWritableConverter"
     valueConvout = "org.apache.spark.examples.pythonconverters.StringListToPutConverter"
 
-    hbase_rdd.map(lambda x: [x[0],'f','index',x[1]]).map(lambda x: (x[0], x)).saveAsNewAPIHadoopDataset(
+    #rowid的设计是唯一的，但内容不唯一
+    hbase_rdd_new.map(lambda x: [x[0],'f','index',x[1]]).map(lambda x: (x[0], x)).saveAsNewAPIHadoopDataset(
         conf=confout,
         keyConverter=keyConvout,
         valueConverter=valueConvout)
