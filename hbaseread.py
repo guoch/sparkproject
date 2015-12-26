@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 import json
+from jieba import analyse
 from pyspark import SparkContext
 import sys 
-import jieba
-import jieba.analyse
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
@@ -40,15 +39,22 @@ ROW                           COLUMN+CELL
 4 row(s) in 0.0240 seconds
 """
 def wordcut(v):
-    x=eval("'%s'"%v['value'])
-    seglist=jieba.cut(x)
+    try:
+        x=eval("'%s'"%v['value'])
+    except Exception,ex:
+        x='invalid'
+    # seglist=jieba.cut(x)
+    seglist=analyse.extract_tags(x,10)
     myvalue='|'.join(seglist)
     return myvalue
 
 def content_analyse(v):
-    x=eval("'%s'"%v['value'])
+    try:
+        x=eval("'%s'"%v['value'])
+    except Exception,ex:
+        x='invalid'
     # seglist=jieba.cut(x)
-    seglist=jieba.analyse.extract_tags(a,10)
+    seglist=analyse.extract_tags(x,10)
     myvalue='|'.join(seglist)
     return myvalue
 
@@ -58,7 +64,7 @@ def inverted(v):
 
 def ridoff(ids):
     news_ids=list(set(ids))
-    news_ids.sort(ids.index)
+    # news_ids.sort(ids.index)
     return news_ids
 
 def hbaseput(sc,host,table,args):  #单独插入性能比较差，并行插入
@@ -99,9 +105,7 @@ if __name__ == "__main__":
     table = sys.argv[2]
     # outputdir=sys.argv[3]
     sc = SparkContext(appName="HBaseInputFormat")
-
-    # Other options for configuring scan behavior are available. More information available at
-    # https://github.com/apache/hbase/blob/master/hbase-server/src/main/java/org/apache/hadoop/hbase/mapreduce/TableInputFormat.java
+    # sc.addJar('/home/scidb/spark-1.5.2/lib/spark-examples-1.5.2-hadoop2.6.0.jar')
     conf = {"hbase.zookeeper.quorum": host, "hbase.mapreduce.inputtable": table}
     if len(sys.argv) > 3:
         conf = {"hbase.zookeeper.quorum": host, "zookeeper.znode.parent": sys.argv[3],
@@ -112,10 +116,10 @@ if __name__ == "__main__":
     hbase_rdd = sc.newAPIHadoopRDD("org.apache.hadoop.hbase.mapreduce.TableInputFormat","org.apache.hadoop.hbase.io.ImmutableBytesWritable","org.apache.hadoop.hbase.client.Result",keyConverter=keyConv,valueConverter=valueConv,conf=conf)
     hbase_rdd = hbase_rdd.flatMapValues(lambda v: v.split("\n")).mapValues(json.loads)
 
-    hbase_rdd_title=hbase_rdd.filter(lambda keyValue: keyValue[1]['qualifier']=='title')
+    hbase_rdd_title=hbase_rdd.filter(lambda keyValue: keyValue[1]['qualifier']=='title' and keyValue[1]['value']!=None)
     hbase_rdd_title=hbase_rdd_title.mapValues(wordcut)  #分析title中所有的关键词，title的权重更加重一些
 
-    hbase_rdd_content=hbase_rdd.filter(lambda keyValue: keyValue[1]['qualifier']=='content')
+    hbase_rdd_content=hbase_rdd.filter(lambda keyValue: keyValue[1]['qualifier']=='content' and keyValue[1]['value']!=None)
     hbase_rdd_content=hbase_rdd_content.mapValues(content_analyse) #按照tf-idf分析去除不相干的关键词以及得到top k的词
     # tags=jieba.analyse.extract_tags(content,top_num)
 
@@ -128,7 +132,7 @@ if __name__ == "__main__":
 
     hbase_rdd_new=hbase_rdd_new.flatMap(inverted).groupByKey()
     #list(set(myList)) 对list去重，一行里面包括多个url并rank
-    hbase_rdd_new=hbase_rdd_new.filter(lambda keyValue:len(keyValue[0])>4) #过滤太短的关键词
+    hbase_rdd_new=hbase_rdd_new.filter(lambda keyValue:len(keyValue[0])>1 and len(keyValue[0])<=4) #过滤太短的关键词
 
     #rank策略 content基于tfidf后
     # hbase_rdd_new=hbase_rdd_new.mapValues(lambda v: list(set(v))).mapValues(lambda v: "|".join(v))
@@ -155,7 +159,7 @@ if __name__ == "__main__":
     #hbase_outputformat <host> test row1 f q1 value1
 
     host='ubuntu1'
-    table='test3'
+    table='newsindex'
     confout = {"hbase.zookeeper.quorum": host,
             "hbase.mapred.outputtable": table,
             "mapreduce.outputformat.class": "org.apache.hadoop.hbase.mapreduce.TableOutputFormat",

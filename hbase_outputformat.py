@@ -41,17 +41,13 @@ ROW                   COLUMN+CELL
 4 row(s) in 0.0780 seconds
 """
 if __name__ == "__main__":
-    if len(sys.argv) != 7:
-        print("""
-        Usage: hbase_outputformat <host> <table> <row> <family> <qualifier> <value>
-
-        Run with example jar:
+    '''
         ./bin/spark-submit --driver-class-path /path/to/example/jar \
         /path/to/examples/hbase_outputformat.py <args>
         Assumes you have created <table> with column family <family> in HBase
         running on <host> already
-        """, file=sys.stderr)
-        exit(-1)
+        '''
+
 
     host = sys.argv[1]
     table = sys.argv[2]

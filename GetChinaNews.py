@@ -129,13 +129,10 @@ class GetChinaNews():
 			sock.close()
 		except:
 			print "Something wrong when openning rollNewsPage:"+self.Url
-		
-		#solve the 404 problem
 		if site == "IFENG":
 			NonePattern = re.compile(r"div class=\"mat\"[^>]*")
 			if NonePattern.search(htmlSource):
 				return False
-				
 		m = re.findall(dirRegex[site],htmlSource,re.M)
 		newsUrl = "NONE"
 		for i in m:

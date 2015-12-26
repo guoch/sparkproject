@@ -1,0 +1,10 @@
+# A Spark Worker will be started on each of the machines listed below.
+ubuntu2
+ubuntu3
+ubuntu4
+ubuntu5
+ubuntu6
+ubuntu7
+ubuntu8
+ubuntu9
+ubuntu10
